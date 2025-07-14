@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hello World</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { display: flex; gap: 20px; }
+        .left-panel { flex: 1; min-width: 400px; }
+        .right-panel { flex: 1; border: 1px solid #ccc; }
+        .nav-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .nav-controls { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+        .arrow-btn { padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .arrow-btn:hover { background: #0056b3; }
+        .arrow-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .current-info { font-weight: bold; margin: 0 10px; }
+        .url-display { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+        .url-link { color: #007bff; text-decoration: none; word-break: break-all; }
+        .url-link:hover { text-decoration: underline; }
+        .project-item { cursor: pointer; padding: 5px; }
+        .project-item.active { background: #e6f3ff; }
+        iframe { width: 100%; height: 600px; border: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <h1 id="message">Hello, World!</h1>
+            <input type="text" id="textInput" placeholder="Enter your message">
+            <button onclick="submitMessage()">Submit</button>
+
+            <div class="nav-section">
+                <h2>Projects</h2>
+                <button onclick="createProject()">+</button>
+                <div class="nav-controls">
+                    <button class="arrow-btn" onclick="navigateProject(-1)">← Prev</button>
+                    <!-- --- CORRECTED --- This span is now rendered by Go -->
+                    <span class="current-info" id="currentProject">
+                        {{if .CurrentProject.Number}}
+                            Project: {{.CurrentProject.Number}}
+                        {{else}}
+                            Project: None
+                        {{end}}
+                    </span>
+                    <button class="arrow-btn" onclick="navigateProject(1)">Next →</button>
+                </div>
+                <div id="projectStatus"></div>
+            </div>
+
+            <div class="nav-section">
+                <h2>Versions</h2>
+                <div class="nav-controls">
+                    <button class="arrow-btn" onclick="navigateVersion(-1)">← Prev</button>
+                    <!-- --- CORRECTED --- This span is now rendered by Go -->
+                    <span class="current-info" id="currentVersion">
+                        {{if .CurrentVersion}}
+                            Version: {{.CurrentVersion}}
+                        {{else}}
+                            Version: None
+                        {{end}}
+                    </span>
+                    <button class="arrow-btn" onclick="navigateVersion(1)">Next →</button>
+                </div>
+            </div>
+
+            <div id="projectsList">
+                <h3>All Projects:</h3>
+                <ul>
+                    {{if .Projects}}
+                        {{range $index, $project := .Projects}}
+                        <li data-index="{{$index}}" class="project-item{{if eq $project.Number $.CurrentProject.Number}} active{{end}}" data-project-number="{{$project.Number}}">
+                            Project {{$project.Number}}{{if eq $project.Number $.CurrentProject.Number}} - ACTIVE{{end}}: {{join $project.Versions ", "}}
+                        </li>
+                        {{end}}
+                    {{else}}
+                        <p>No projects found</p>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="url-display">
+                <strong>Current URL:</strong><br>
+                <a href="{{.CurrentURL}}" id="currentUrl" class="url-link" target="_blank">
+                    {{if .CurrentURL}}{{.CurrentURL}}{{else}}No URL loaded{{end}}
+                </a>
+            </div>
+            <iframe id="previewFrame" src="{{if .CurrentURL}}{{.CurrentURL}}{{else}}about:blank{{end}}"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // Pre-loaded data from the Go server
+        const preloadedProjects = JSON.parse('{{.Projects | json}}');
+
+        // --- All JavaScript below is the same as the previous correct version ---
+        // It is designed to take over from the perfectly rendered server state.
+
+        // Cookie Manager
+        function getCookieId() {
+            let cookieId = localStorage.getItem('userCookieId');
+            if (!cookieId) {
+                cookieId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                localStorage.setItem('userCookieId', cookieId);
+            }
+            return cookieId;
+        }
+
+        // Application State
+        let state = {
+            highestProjectNumber: 1,
+            projectsData: [],
+            currentProjectIndex: 0,
+            currentVersionIndex: 0,
+        };
+
+        function setProjectsData(projects) {
+            state.projectsData = (projects || []).map(p => ({
+                ...p,
+                versions: p.versions || []
+            }));
+            state.highestProjectNumber = 0;
+            if (state.projectsData.length > 0) {
+                 const highestNum = parseInt(state.projectsData[0].number);
+                 if (!isNaN(highestNum)) {
+                    state.highestProjectNumber = highestNum
+                 }
+            }
+        }
+
+        function addProject(newProjectNumber) {
+            state.highestProjectNumber = newProjectNumber;
+            state.projectsData.unshift({
+                number: newProjectNumber.toString(),
+                versions: []
+            });
+            state.currentProjectIndex = 0;
+            state.currentVersionIndex = 0;
+        }
+
+        function addVersionToCurrentProject() {
+            if (state.projectsData.length > 0) {
+                const currentProject = state.projectsData[state.currentProjectIndex];
+                if (currentProject) {
+                    const nextVersion = `v${currentProject.versions.length + 1}`;
+                    currentProject.versions.push(nextVersion);
+                    state.currentVersionIndex = currentProject.versions.length - 1;
+                }
+            }
+        }
+
+        function setCurrentProjectIndex(index) {
+            state.currentProjectIndex = index;
+            const currentProject = state.projectsData[index];
+            if (currentProject && currentProject.versions.length > 0) {
+                 state.currentVersionIndex = currentProject.versions.length - 1;
+            } else {
+                 state.currentVersionIndex = 0;
+            }
+        }
+
+        function updateCurrentProjectIndex(direction) {
+            const newIndex = state.currentProjectIndex - direction;
+            if (newIndex >= 0 && newIndex < state.projectsData.length) {
+                state.currentProjectIndex = newIndex;
+                const currentProject = state.projectsData[newIndex];
+                 if (currentProject && currentProject.versions.length > 0) {
+                    state.currentVersionIndex = currentProject.versions.length - 1;
+                } else {
+                    state.currentVersionIndex = 0;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function updateCurrentVersionIndex(direction) {
+            if (state.projectsData.length === 0) return false;
+            const currentProject = state.projectsData[state.currentProjectIndex];
+            if (!currentProject || currentProject.versions.length === 0) return false;
+            const newIndex = state.currentVersionIndex - direction;
+            if (newIndex >= 0 && newIndex < currentProject.versions.length) {
+                state.currentVersionIndex = newIndex;
+                return true;
+            }
+            return false;
+        }
+
+        function createProjectOnServer(newProjectNumber) {
+            return fetch('https://goldpluto.com/api/fast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'create_project',
+                    project_number: newProjectNumber
+                })
+            });
+        }
+
+        function fetchProjects() {
+            return fetch('https://goldpluto.com/api/fast/projects')
+                .then(response => response.json());
+        }
+
+        function submitNewVersion(text) {
+            return fetch('https://goldpluto.com/api/fast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: getCookieId(),
+                    value: text
+                })
+            }).then(response => response.json());
+        }
+
+        function updateNavigationView() {
+            const projectSpan = document.getElementById('currentProject');
+            const versionSpan = document.getElementById('currentVersion');
+            if (state.projectsData.length === 0 || !state.projectsData[state.currentProjectIndex]) {
+                projectSpan.textContent = 'Project: None';
+                versionSpan.textContent = 'Version: None';
+                return;
+            }
+            const currentProject = state.projectsData[state.currentProjectIndex];
+            projectSpan.textContent = `Project: ${currentProject.number}`;
+            if (currentProject.versions.length === 0) {
+                versionSpan.textContent = 'Version: None';
+            } else {
+                const currentVersion = currentProject.versions[state.currentVersionIndex];
+                versionSpan.textContent = `Version: ${currentVersion}`;
+            }
+        }
+
+        function updatePreviewView() {
+            const iframe = document.getElementById('previewFrame');
+            const urlLink = document.getElementById('currentUrl');
+            if (state.projectsData.length === 0 || !state.projectsData[state.currentProjectIndex]) {
+                iframe.src = 'about:blank';
+                urlLink.href = '#';
+                urlLink.textContent = 'No URL loaded';
+                return;
+            }
+            const currentProject = state.projectsData[state.currentProjectIndex];
+            if (currentProject.versions.length === 0) {
+                iframe.src = 'about:blank';
+                urlLink.href = '#';
+                urlLink.textContent = 'No URL loaded';
+                return;
+            }
+            const currentVersion = currentProject.versions[state.currentVersionIndex];
+            const url = `https://goldpluto.com/project${currentProject.number}/${currentVersion}/index.html`;
+            iframe.src = url;
+            urlLink.href = url;
+            urlLink.textContent = url;
+        }
+
+        function updateProjectsListView() {
+            const projectsList = document.getElementById('projectsList');
+            if (state.projectsData.length === 0) {
+                projectsList.innerHTML = '<p>No projects found</p>';
+                return;
+            }
+            let html = '<h3>All Projects:</h3><ul>';
+            state.projectsData.forEach((project, index) => {
+                const versionsText = project.versions.join(', ');
+                const isActive = index === state.currentProjectIndex;
+                html += `<li data-index="${index}" data-project-number="${project.number}" class="project-item${isActive ? ' active' : ''}">
+                    Project ${project.number}${isActive ? ' - ACTIVE' : ''}: ${versionsText}
+                </li>`;
+            });
+            html += '</ul>';
+            projectsList.innerHTML = html;
+            projectsList.querySelectorAll('li').forEach(li => {
+                li.addEventListener('click', (event) => {
+                    const index = parseInt(event.currentTarget.dataset.index);
+                    handleProjectSelection(index);
+                });
+            });
+        }
+
+        function handleProjectSelection(index) {
+            setCurrentProjectIndex(index);
+            updateNavigationView();
+            updateProjectsListView();
+            updatePreviewView();
+        }
+
+        function handleProjectNavigation(direction) {
+            if (updateCurrentProjectIndex(direction)) {
+                updateNavigationView();
+                updateProjectsListView();
+                updatePreviewView();
+            }
+        }
+
+        function handleVersionNavigation(direction) {
+            if (updateCurrentVersionIndex(direction)) {
+                updateNavigationView();
+                updatePreviewView();
+            }
+        }
+
+        function handleProjectCreation() {
+            const newProjectNumber = state.highestProjectNumber + 1;
+
+            // Optimistic update: Add project to local state and update UI immediately.
+            addProject(newProjectNumber);
+            handleProjectSelection(0); // This selects the new project and updates all views.
+
+            // Asynchronously create the project on the server.
+            createProjectOnServer(newProjectNumber).catch(error => {
+                console.error('Error creating project on server:', error);
+                // If server call fails, revert the change by fetching the truth from the server.
+                fetchProjects().then(projects => {
+                    setProjectsData(projects);
+                    // This might change the selection, but it keeps the UI consistent.
+                    handleProjectSelection(0);
+                });
+            });
+        }
+
+        function handleTextSubmission() {
+            const input = document.getElementById('textInput');
+            const message = document.getElementById('message');
+            const text = input.value;
+            if (!text) return;
+
+            if (state.projectsData.length === 0 || !state.projectsData[state.currentProjectIndex]) {
+                message.textContent = "Create a project first.";
+                return;
+            }
+            
+            const originalProjectIndex = state.currentProjectIndex;
+
+            // Optimistic update
+            message.textContent = "Saving...";
+            addVersionToCurrentProject();
+            updateNavigationView();
+            updateProjectsListView();
+            
+            const iframe = document.getElementById('previewFrame');
+            const urlLink = document.getElementById('currentUrl');
+            iframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(text);
+            urlLink.textContent = "Previewing new content...";
+            urlLink.href = '#';
+            input.value = '';
+
+            // Asynchronously submit the new version.
+            submitNewVersion(text).then(data => {
+                if (data.status === 'saved') {
+                    message.textContent = "Saved!";
+                    // The server has confirmed the save. Fetch the updated projects
+                    // to get the correct version number and URL.
+                    fetchProjects().then(projects => {
+                        setProjectsData(projects);
+                        const newIndex = state.projectsData.findIndex(p => p.number === data.project.toString());
+                        if (newIndex !== -1) {
+                            handleProjectSelection(newIndex);
+                        }
+                    });
+                } else {
+                    message.textContent = `Failed: ${data.error || 'Unknown error'}`;
+                    // Revert on failure
+                    fetchProjects().then(projects => {
+                         setProjectsData(projects);
+                         handleProjectSelection(originalProjectIndex);
+                    });
+                }
+            }).catch(error => {
+                console.error('Error submitting message:', error);
+                message.textContent = "Error!";
+                // Revert on error
+                fetchProjects().then(projects => {
+                    setProjectsData(projects);
+                    handleProjectSelection(originalProjectIndex);
+                });
+            });
+        }
+
+        function submitMessage() { handleTextSubmission(); }
+        function createProject() { handleProjectCreation(); }
+        function navigateProject(direction) { handleProjectNavigation(direction); }
+        function navigateVersion(direction) { handleVersionNavigation(direction); }
+
+        function initialize() {
+            setProjectsData(preloadedProjects);
+            
+            // Server already rendered the active styling, no need to apply it again
+            
+            if (preloadedProjects && preloadedProjects.length > 0) {
+                handleProjectSelection(0);
+            } else {
+                updateNavigationView();
+                updateProjectsListView();
+            }
+            setTimeout(() => {
+                fetchProjects().then(updatedProjects => {
+                    setProjectsData(updatedProjects);
+                    updateProjectsListView();
+                });
+            }, 1000);
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>
