@@ -5,3 +5,5 @@ Based on this project I am taking the learnings I now know how to make any websi
 Important to know: This is only for the purpose of finding out how to make a site fast, and nothing else.
 
 Side note: I have not included all the files like my gateway for python app routes and nginx files.
+
+P.S. You can test how fast it is by clickin on the plus sign to add projects and then you can refresh the page and the correct actual number is instantly there. You can also enter [goldpluto.com/go](https://goldpluto.com/go) then in Icognito Tab and you will see the speed isn't depended on cache or cookies which is amazing as you can imagine how fast it will be if you use those methods too.
