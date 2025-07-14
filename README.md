@@ -3,3 +3,5 @@ My goal was to find a way to load a site with all the data instantly. I was anno
 Based on this project I am taking the learnings I now know how to make any website ultra fast if I need to make it extremely fast.
 
 Important to know: This is only for the purpose of finding out how to make a site fast, and nothing else.
+
+Side note: I have not included all the files like my gateway for python app routes and nginx files.
